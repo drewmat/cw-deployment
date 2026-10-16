@@ -1,0 +1,83 @@
+name: Frontend
+
+on:
+  pull_request:
+    paths:
+      - "frontend/**"
+      - ".github/workflows/frontend.yml"
+  push:
+    branches: [main]
+    paths:
+      - "frontend/**"
+      - ".github/workflows/frontend.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # PRs: make sure the site builds. No AWS access.
+  build:
+    name: build
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: ./frontend/build.sh
+        env:
+          API_URL: https://api.example.com
+
+  deploy:
+    name: build, sync to S3, invalidate CloudFront
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    concurrency:
+      group: frontend-deploy
+      cancel-in-progress: false
+    env:
+      # Names follow the Terraform conventions (envs/prod/main.tf locals).
+      BUCKET: ${{ vars.PROJECT_NAME }}-prod-frontend-${{ vars.AWS_ACCOUNT_ID }}
+      SITE_HOST: app.${{ vars.DOMAIN_NAME }}
+      API_URL: https://api.${{ vars.DOMAIN_NAME }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build static assets
+        run: ./frontend/build.sh
+
+      # S3 + CloudFront deploy role, trusted for refs/heads/main of this repo.
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/${{ vars.PROJECT_NAME }}-gha-frontend
+          role-session-name: frontend-${{ github.run_id }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      # Assets are not content-hashed, so keep their cache short; the entry
+      # points are never cached and the distribution is invalidated below.
+      - name: Sync assets
+        run: |
+          aws s3 sync frontend/dist "s3://$BUCKET" --delete \
+            --exclude index.html --exclude config.js \
+            --cache-control "public,max-age=3600"
+
+      - name: Upload entry points (no-cache)
+        run: |
+          aws s3 cp frontend/dist/index.html "s3://$BUCKET/index.html" --cache-control "no-cache"
+          aws s3 cp frontend/dist/config.js "s3://$BUCKET/config.js" --cache-control "no-cache"
+
+      # The role may list distributions, so the ID is looked up by alias
+      # instead of being stored as a variable.
+      - name: Invalidate CloudFront cache
+        run: |
+          dist_id=$(aws cloudfront list-distributions \
+            --query "DistributionList.Items[?Aliases.Items && contains(Aliases.Items, '${SITE_HOST}')].Id | [0]" \
+            --output text)
+          if [ -z "$dist_id" ] || [ "$dist_id" = "None" ]; then
+            echo "No CloudFront distribution found for $SITE_HOST" >&2
+            exit 1
+          fi
+          aws cloudfront create-invalidation --distribution-id "$dist_id" --paths "/*"

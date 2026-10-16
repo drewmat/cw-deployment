@@ -1,0 +1,36 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: karpenter
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    # OCI chart: ArgoCD takes the registry path without the oci:// scheme.
+    repoURL: public.ecr.aws/karpenter
+    chart: karpenter
+    targetRevision: {{ .Values.versions.karpenter | quote }}
+    helm:
+      valuesObject:
+        replicas: 2
+        settings:
+          clusterName: {{ required "cluster.name is required" .Values.cluster.name | quote }}
+          interruptionQueue: {{ required "karpenter.interruptionQueue is required" .Values.karpenter.interruptionQueue | quote }}
+        serviceAccount:
+          name: karpenter
+          annotations:
+            eks.amazonaws.com/role-arn: {{ required "irsa.karpenter is required" .Values.irsa.karpenter | quote }}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

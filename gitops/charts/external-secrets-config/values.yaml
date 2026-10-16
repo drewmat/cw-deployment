@@ -1,0 +1,5 @@
+region: "" # injected
+storeName: aws-secrets-manager
+serviceAccount:
+  name: external-secrets
+  namespace: external-secrets

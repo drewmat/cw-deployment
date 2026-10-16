@@ -1,0 +1,35 @@
+name: backend-api
+
+# Must be > 1 (assessment requirement). Spread across AZs by the constraints below.
+replicaCount: 2
+
+image:
+  repository: "" # injected (ECR repo URL)
+  # Rewritten by .github/workflows/backend.yml with the Git SHA of each build.
+  tag: "bootstrap"
+  pullPolicy: IfNotPresent
+
+port: 8080
+
+config:
+  corsOrigin: "" # injected
+  dbHost: ""     # injected
+  dbName: ""     # injected
+  dbPort: "5432"
+  dbSslMode: require
+
+secret:
+  name: backend-db
+  storeName: aws-secrets-manager
+  remoteKey: "" # injected: ARN of the RDS-managed Secrets Manager secret
+  refreshInterval: 1h
+
+ingress:
+  host: "" # injected (ExternalDNS publishes this name)
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    memory: 256Mi

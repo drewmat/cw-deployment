@@ -1,0 +1,46 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: external-dns
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://kubernetes-sigs.github.io/external-dns
+    chart: external-dns
+    targetRevision: {{ .Values.versions.externalDns | quote }}
+    helm:
+      valuesObject:
+        provider:
+          name: aws
+        sources:
+          - ingress
+        # "sync" also deletes records when the Ingress goes away. Safe because
+        # records are owned via TXT registry and limited to this zone/domain.
+        policy: sync
+        registry: txt
+        txtOwnerId: {{ .Values.cluster.name | quote }}
+        domainFilters:
+          - {{ required "cluster.domain is required" .Values.cluster.domain | quote }}
+        env:
+          - name: AWS_DEFAULT_REGION
+            value: {{ .Values.cluster.region | quote }}
+        serviceAccount:
+          create: true
+          name: external-dns
+          annotations:
+            eks.amazonaws.com/role-arn: {{ required "irsa.externalDns is required" .Values.irsa.externalDns | quote }}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: external-dns
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

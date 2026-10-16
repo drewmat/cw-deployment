@@ -1,0 +1,126 @@
+name: Backend
+
+on:
+  pull_request:
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend.yml"
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  IMAGE_TAG: ${{ github.sha }}
+  ECR_REPOSITORY: ${{ vars.PROJECT_NAME }}/backend
+
+jobs:
+  # PRs: prove the image builds. No AWS access (the backend role only trusts main).
+  build:
+    name: build (no push)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: backend
+          platforms: linux/amd64
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  publish:
+    name: build and push to ECR
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # GitHub OIDC token for role assumption
+    steps:
+      - uses: actions/checkout@v4
+
+      # ECR-push-only role, trusted for refs/heads/main of this repo.
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/${{ vars.PROJECT_NAME }}-gha-backend
+          role-session-name: backend-${{ github.run_id }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Log in to ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # Tags are immutable, so a re-run for the same commit must not push again.
+      - name: Check whether this tag already exists
+        id: exists
+        run: |
+          found=$(aws ecr batch-get-image \
+            --repository-name "$ECR_REPOSITORY" \
+            --image-ids imageTag="$IMAGE_TAG" \
+            --query 'images[0].imageId.imageTag' --output text)
+          if [ "$found" = "$IMAGE_TAG" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: docker/setup-buildx-action@v3
+        if: steps.exists.outputs.exists == 'false'
+
+      - name: Build and push (Git SHA tag)
+        if: steps.exists.outputs.exists == 'false'
+        uses: docker/build-push-action@v6
+        with:
+          context: backend
+          platforms: linux/amd64
+          push: true
+          provenance: false
+          tags: ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # The GitOps hand-off: commit the new tag; ArgoCD sees the change and rolls it out.
+  update-manifest:
+    name: update image tag in gitops/
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # push the tag bump (uses the built-in GITHUB_TOKEN, no stored secret)
+    concurrency:
+      group: gitops-manifest-update
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Set image tag
+        run: yq -i '.image.tag = strenv(IMAGE_TAG)' gitops/apps/backend/values.yaml
+
+      # Pushes made with GITHUB_TOKEN do not trigger workflows, and gitops/**
+      # is outside this workflow's path filter, so this cannot loop.
+      # Note: if branch protection blocks pushes to main, allow the
+      # github-actions bot to bypass it or switch this step to open a PR.
+      - name: Commit and push
+        run: |
+          if git diff --quiet; then
+            echo "Tag already set to $IMAGE_TAG; nothing to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "deploy(backend): ${IMAGE_TAG::7} [skip ci]"
+          for attempt in 1 2 3; do
+            git pull --rebase origin main && git push origin HEAD:main && exit 0
+            sleep $((attempt * 3))
+          done
+          echo "Failed to push manifest update" >&2
+          exit 1

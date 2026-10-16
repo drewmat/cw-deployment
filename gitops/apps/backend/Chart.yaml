@@ -1,0 +1,6 @@
+apiVersion: v2
+name: backend-api
+description: "Flask microservice: GET / runs SELECT 1 on RDS and returns JSON"
+type: application
+version: 0.1.0
+appVersion: "0.0.0"

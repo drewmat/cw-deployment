@@ -1,0 +1,39 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: backend-api
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: {{ required "repoURL is required" .Values.repoURL | quote }}
+    targetRevision: {{ .Values.targetRevision | quote }}
+    path: gitops/apps/backend
+    helm:
+      # image.tag is NOT set here: the backend pipeline commits it to
+      # gitops/apps/backend/values.yaml, which is what triggers the rollout.
+      valuesObject:
+        image:
+          repository: {{ required "backend.imageRepository is required" .Values.backend.imageRepository | quote }}
+        ingress:
+          host: {{ required "backend.apiHostname is required" .Values.backend.apiHostname | quote }}
+        config:
+          corsOrigin: {{ .Values.backend.corsOrigin | quote }}
+          dbHost: {{ required "backend.db.host is required" .Values.backend.db.host | quote }}
+          dbName: {{ required "backend.db.name is required" .Values.backend.db.name | quote }}
+        secret:
+          remoteKey: {{ required "backend.db.secretArn is required" .Values.backend.db.secretArn | quote }}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: backend
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

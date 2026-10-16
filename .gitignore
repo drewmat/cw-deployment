@@ -1,0 +1,7 @@
+.terraform/
+*.tfstate*
+*.tfplan
+tfplan
+.terraform.lock.hcl.bak
+frontend/dist/
+__pycache__/

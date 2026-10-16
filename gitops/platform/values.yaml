@@ -1,0 +1,38 @@
+# Defaults live in Git. Cluster/account-specific values (everything marked
+# "injected") are supplied by Terraform through the root Application's
+# helm.valuesObject (terraform/envs/prod-platform/main.tf).
+
+repoURL: ""        # injected
+targetRevision: main # injected
+
+# Upstream chart versions are pinned here so upgrades are reviewed Git changes.
+versions:
+  awsLoadBalancerController: 3.6.0
+  externalDns: 1.23.0
+  externalSecrets: 2.12.0
+  karpenter: 1.14.1
+
+cluster: # injected
+  name: ""
+  region: ""
+  vpcId: ""
+  domain: ""
+
+irsa: # injected
+  albController: ""
+  externalDns: ""
+  externalSecrets: ""
+  karpenter: ""
+
+karpenter: # injected
+  nodeRoleName: ""
+  interruptionQueue: ""
+
+backend: # injected
+  apiHostname: ""
+  corsOrigin: ""
+  imageRepository: ""
+  db:
+    host: ""
+    name: ""
+    secretArn: ""

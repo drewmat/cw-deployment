@@ -1,0 +1,9 @@
+clusterName: ""   # injected
+nodeRoleName: ""  # injected (Terraform output karpenter_node_role_name)
+
+nodePool:
+  # Hard ceiling on what Karpenter may provision for this pool.
+  cpuLimit: "32"
+  instanceCategories: ["c", "m", "r"]
+  instanceGenerationGt: "4"
+  capacityTypes: ["spot", "on-demand"]
