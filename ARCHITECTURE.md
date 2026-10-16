@@ -244,5 +244,3 @@ prints the exact commands (no public ingress by default).
   does not resolve, switch `remoteRef.key` to the secret name.
 - **Not included:** WAF, VPC flow logs, VPC endpoints, ALB alarms, tflint/checkov
   scanning, ArgoCD ingress/SSO, and a permissions boundary on the apply role.
-- **Housekeeping:** `modules/cicd` is an empty leftover, and `envs/prod` declares
-  `github_org`/`github_repo` variables it does not use.

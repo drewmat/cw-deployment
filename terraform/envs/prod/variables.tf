@@ -22,14 +22,6 @@ variable "alert_email" {
   type = string
 }
 
-variable "github_org" {
-  type = string
-}
-
-variable "github_repo" {
-  type = string
-}
-
 variable "eks_version" {
   type    = string
   default = "1.35"
