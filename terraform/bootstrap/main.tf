@@ -39,11 +39,31 @@ variable "github_repo" {
   type = string
 }
 
+# GitHub repositories created after 2026-07-15 emit OIDC subjects containing
+# immutable IDs: repo:<owner>@<owner_id>/<repo>@<repo_id>:... Set both to match
+# that format (find them in the `sub` claim, or: gh api repos/<owner>/<repo>
+# --jq '.owner.id, .id'). Leave both null for a legacy repo (repo:<owner>/<repo>:...).
+variable "github_owner_id" {
+  type    = string
+  default = null
+}
+
+variable "github_repo_id" {
+  type    = string
+  default = null
+  validation {
+    condition     = (var.github_owner_id == null) == (var.github_repo_id == null)
+    error_message = "Set github_owner_id and github_repo_id together, or neither."
+  }
+}
+
 data "aws_caller_identity" "current" {}
 
 locals {
-  account_id  = data.aws_caller_identity.current.account_id
-  repo        = "${var.github_org}/${var.github_repo}"
+  account_id = data.aws_caller_identity.current.account_id
+  # Repo segment of the OIDC `sub` claim. With immutable IDs the trust survives a
+  # repo rename and cannot be claimed by someone re-creating the same name.
+  repo        = var.github_owner_id == null ? "${var.github_org}/${var.github_repo}" : "${var.github_org}@${var.github_owner_id}/${var.github_repo}@${var.github_repo_id}"
   state_bkt   = "${var.project}-tfstate-${local.account_id}"
   frontend_bk = "${var.project}-${var.environment}-frontend-${local.account_id}"
   ecr_arn     = "arn:aws:ecr:${var.region}:${local.account_id}:repository/${var.project}/backend"
