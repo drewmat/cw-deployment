@@ -86,9 +86,16 @@ roles, and the state bucket must be created once by a human with admin credentia
 ```bash
 cd terraform/bootstrap
 terraform init
-terraform apply -var github_org=<org> -var github_repo=<repo>
+terraform apply -var github_org=<org> -var github_repo=<repo> \
+  -var github_owner_id=<owner-id> -var github_repo_id=<repo-id>
 terraform output github_actions_variables
 ```
+
+`github_owner_id` and `github_repo_id` are needed for repositories created after
+2026-07-15, whose OIDC subject is `repo:<owner>@<owner_id>/<repo>@<repo_id>:...`
+(`gh api repos/<owner>/<repo> --jq '.owner.id, .id'` prints them). The trust policies then
+match those immutable IDs, which also survive a repo rename. Omit both for an older
+repository that still uses `repo:<owner>/<repo>:...`.
 
 Then move bootstrap's own state into the bucket it just created, so it is versioned,
 encrypted and not tied to one laptop (the bucket has `prevent_destroy` set):
