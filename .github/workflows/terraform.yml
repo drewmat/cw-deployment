@@ -138,7 +138,8 @@ jobs:
     runs-on: ubuntu-latest
     # The "prod" GitHub Environment holds the approval gate (required reviewers,
     # main-only deployment branches). The apply role trusts exactly this
-    # environment's OIDC subject: repo:<org>/<repo>:environment:prod
+    # environment's OIDC subject (repo:<org>/<repo>:environment:prod; with immutable
+    # IDs the repo segment is <org>@<owner_id>/<repo>@<repo_id>, see ARCHITECTURE.md).
     environment: prod
     permissions:
       contents: read
@@ -156,23 +157,6 @@ jobs:
         with:
           terraform_version: ${{ env.TF_VERSION }}
           terraform_wrapper: false
-
-      # TEMPORARY DEBUG: prints the (non-secret) claims of the OIDC token so they
-      # can be compared with the role's trust policy. Remove once resolved.
-      - name: DEBUG show OIDC claims
-        run: |
-          python3 - <<'PY'
-          import base64, json, os, urllib.request
-          req = urllib.request.Request(
-              os.environ["ACTIONS_ID_TOKEN_REQUEST_URL"] + "&audience=sts.amazonaws.com",
-              headers={"Authorization": "bearer " + os.environ["ACTIONS_ID_TOKEN_REQUEST_TOKEN"]},
-          )
-          token = json.load(urllib.request.urlopen(req))["value"]
-          payload = token.split(".")[1]
-          claims = json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))
-          keys = ["iss", "aud", "sub", "ref", "environment", "event_name", "repository", "repository_owner", "job_workflow_ref"]
-          print(json.dumps({k: claims.get(k) for k in keys}, indent=2))
-          PY
 
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4

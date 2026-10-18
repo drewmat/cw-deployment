@@ -95,6 +95,7 @@ module "observability" {
   name                       = local.name
   alert_email                = var.alert_email
   rds_instance_identifier    = module.rds.identifier
+  enable_cloudfront_alarm    = var.region == "us-east-1"
   cloudfront_distribution_id = module.frontend.distribution_id
 }
 

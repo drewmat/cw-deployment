@@ -81,7 +81,7 @@ resource "aws_cloudwatch_metric_alarm" "rds" {
 }
 
 resource "aws_cloudwatch_metric_alarm" "cloudfront_5xx" {
-  count = var.cloudfront_distribution_id == null ? 0 : 1
+  count = var.enable_cloudfront_alarm ? 1 : 0
 
   alarm_name          = "${var.name}-cloudfront-5xx"
   alarm_description   = "CloudFront 5xx error rate above 5%"
@@ -100,8 +100,12 @@ resource "aws_cloudwatch_metric_alarm" "cloudfront_5xx" {
 
   lifecycle {
     precondition {
+      condition     = var.cloudfront_distribution_id != null
+      error_message = "cloudfront_distribution_id is required when enable_cloudfront_alarm is true."
+    }
+    precondition {
       condition     = data.aws_region.current.region == "us-east-1"
-      error_message = "CloudFront metrics are only published in us-east-1; run this module there or omit cloudfront_distribution_id."
+      error_message = "CloudFront metrics are only published in us-east-1; run this module there or set enable_cloudfront_alarm = false."
     }
   }
 }

@@ -8,11 +8,13 @@ resource "aws_security_group" "this" {
   }
 }
 
+# count (not for_each): the SG IDs are only known after apply on a first run, but
+# the number of entries in the list is known at plan time.
 resource "aws_vpc_security_group_ingress_rule" "from_nodes" {
-  for_each = toset(var.allowed_security_group_ids)
+  count = length(var.allowed_security_group_ids)
 
   security_group_id            = aws_security_group.this.id
-  referenced_security_group_id = each.value
+  referenced_security_group_id = var.allowed_security_group_ids[count.index]
   ip_protocol                  = "tcp"
   from_port                    = 5432
   to_port                      = 5432
