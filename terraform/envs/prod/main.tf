@@ -103,5 +103,5 @@ module "ecr_backend" {
   source = "../../modules/ecr"
 
   name         = "${var.project}/backend"
-  force_delete = !var.rds_deletion_protection
+  force_delete = var.ecr_force_delete
 }

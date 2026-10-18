@@ -62,6 +62,11 @@ locals {
 # Create and configure the state S3 bucket
 resource "aws_s3_bucket" "state" {
   bucket = local.state_bkt
+
+  # This bucket holds every stack's state, including bootstrap's own once migrated.
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "aws_s3_bucket_versioning" "state" {

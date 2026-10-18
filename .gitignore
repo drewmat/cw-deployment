@@ -5,3 +5,15 @@ tfplan
 .terraform.lock.hcl.bak
 frontend/dist/
 __pycache__/
+
+# Local variable files (may contain environment-specific values)
+*.tfvars
+*.tfvars.json
+override.tf
+override.tf.json
+crash.log
+crash.*.log
+
+# Python / editor / OS
+.venv/
+.DS_Store

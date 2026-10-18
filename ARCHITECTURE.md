@@ -90,7 +90,18 @@ terraform apply -var github_org=<org> -var github_repo=<repo>
 terraform output github_actions_variables
 ```
 
-Bootstrap state stays local (see section 7). Nothing else is ever run locally.
+Then move bootstrap's own state into the bucket it just created, so it is versioned,
+encrypted and not tied to one laptop (the bucket has `prevent_destroy` set):
+
+```bash
+cp backend.tf.example backend.tf
+terraform init -migrate-state \
+  -backend-config="bucket=$(terraform output -raw state_bucket)" \
+  -backend-config="region=<region>"
+rm -f terraform.tfstate terraform.tfstate.backup   # local copies after migration
+```
+
+Commit `backend.tf`. Nothing else is ever run locally.
 
 ### 3.2 GitHub configuration
 
@@ -150,6 +161,8 @@ prints the exact commands (no public ingress by default).
   (spot + on-demand, c/m/r families, IMDSv2 only, encrypted gp3, CPU limit as a cost cap).
 - Chosen over Cluster Autoscaler for faster, bin-packed, right-sized scaling with no
   per-ASG instance-type management.
+- Kubernetes 1.35 (`eks_version`): in EKS standard support until March 2027, and
+  supported by the pinned Karpenter 1.14.x (Karpenter 1.9+ supports 1.35).
 - **Trade-off:** Karpenter needs its own bootstrap capacity (the system group) and an
   interruption queue. Both are provisioned.
 
@@ -233,8 +246,6 @@ prints the exact commands (no public ingress by default).
 
 ## 7. Known gaps and next steps
 
-- **Bootstrap state is local.** After the first apply, add an `s3` backend block to
-  `terraform/bootstrap` and run `terraform init -migrate-state` so the state is not lost.
 - **Public repo assumed.** For a private repo, store a deploy key in Secrets Manager,
   sync it with External Secrets, and register it as an ArgoCD repository credential.
 - **EKS public endpoint** is open to `0.0.0.0/0` by default so GitHub-hosted runners can

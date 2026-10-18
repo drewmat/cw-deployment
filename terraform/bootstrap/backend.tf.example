@@ -1,0 +1,17 @@
+# Copy to backend.tf AFTER the first bootstrap apply to move bootstrap's own
+# state into the bucket it created (see ARCHITECTURE.md, "One-time bootstrap").
+#
+#   cp backend.tf.example backend.tf
+#   terraform init -migrate-state \
+#     -backend-config="bucket=$(terraform output -raw state_bucket)" \
+#     -backend-config="region=<region>"
+#
+# Bucket and region are passed on the command line so nothing account-specific
+# is committed. Delete backend.tf before bootstrapping a brand-new account.
+terraform {
+  backend "s3" {
+    key          = "bootstrap/terraform.tfstate"
+    use_lockfile = true
+    encrypt      = true
+  }
+}

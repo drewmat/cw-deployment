@@ -43,6 +43,12 @@ variable "rds_multi_az" {
   default = true
 }
 
+variable "ecr_force_delete" {
+  description = "Allow terraform destroy to delete the ECR repository even if it still holds images."
+  type        = bool
+  default     = false
+}
+
 variable "rds_deletion_protection" {
   description = "false also skips the final snapshot (throwaway environments only)."
   type        = bool
